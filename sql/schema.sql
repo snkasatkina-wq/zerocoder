@@ -76,3 +76,50 @@ CREATE TABLE IF NOT EXISTS event_matches (
 
 CREATE INDEX IF NOT EXISTS ix_matches_day_result
     ON event_matches(day_date, result);
+
+-- Prevent incorrect cross-day or plan-to-plan/fact-to-fact associations.
+CREATE TRIGGER IF NOT EXISTS trg_event_matches_validate_insert
+BEFORE INSERT ON event_matches
+BEGIN
+    SELECT CASE
+        WHEN NEW.plan_event_id IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM events
+            WHERE id = NEW.plan_event_id
+              AND source_type = 'plan'
+              AND day_date = NEW.day_date
+        )
+        THEN RAISE(ABORT, 'plan_event_id must reference a plan event on day_date')
+    END;
+    SELECT CASE
+        WHEN NEW.fact_event_id IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM events
+            WHERE id = NEW.fact_event_id
+              AND source_type = 'fact'
+              AND day_date = NEW.day_date
+        )
+        THEN RAISE(ABORT, 'fact_event_id must reference a fact event on day_date')
+    END;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_event_matches_validate_update
+BEFORE UPDATE OF day_date, plan_event_id, fact_event_id ON event_matches
+BEGIN
+    SELECT CASE
+        WHEN NEW.plan_event_id IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM events
+            WHERE id = NEW.plan_event_id
+              AND source_type = 'plan'
+              AND day_date = NEW.day_date
+        )
+        THEN RAISE(ABORT, 'plan_event_id must reference a plan event on day_date')
+    END;
+    SELECT CASE
+        WHEN NEW.fact_event_id IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM events
+            WHERE id = NEW.fact_event_id
+              AND source_type = 'fact'
+              AND day_date = NEW.day_date
+        )
+        THEN RAISE(ABORT, 'fact_event_id must reference a fact event on day_date')
+    END;
+END;
